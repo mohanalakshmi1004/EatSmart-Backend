@@ -13,7 +13,7 @@ const bcrypt = require("bcryptjs");
 
 dotenv.config();
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 app.use(express.json());
 app.use(cors());
@@ -24,10 +24,26 @@ const ecommerceDB = mongoose.createConnection(
   { useNewUrlParser: true, useUnifiedTopology: true }
 );
 
+ecommerceDB.on('connected', () => {
+  console.log('✅ Ecommerce DB Connected');
+});
+
+ecommerceDB.on('error', (err) => {
+  console.error('❌ Ecommerce DB Connection Error:', err.message);
+});
+
 const authDB = mongoose.createConnection(
   process.env.MONGODB_URL_LOGIN,
   { useNewUrlParser: true, useUnifiedTopology: true }
 );
+
+authDB.on('connected', () => {
+  console.log('✅ Auth DB Connected');
+});
+
+authDB.on('error', (err) => {
+  console.error('❌ Auth DB Connection Error:', err.message);
+});
 
 // ------------------ Schemas & Models ------------------
 const User = authDB.model(
@@ -253,17 +269,20 @@ app.post("/smartrecipes", async (req, res) => {
       return res.status(400).json({ error: "Ingredients must be a non-empty array." });
     }
 
-    const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    // Explicit prompt to help your RegEx work later
-    const prompt = `Create a simple Indian style recipe using these ingredients: ${ingredients.join(", ")}. 
-    Format your response exactly like this:
-    Title: [Name]
+    const textModel = genAI.getGenerativeModel({ model: "models/gemini-pro" });
+    const prompt = `Generate a detailed recipe using these ingredients: ${ingredients.join(", ")}.
+    
+    Please provide the response in this exact format:
+    Title: [Recipe Name]
+    
     Ingredients:
-    - [Item]
+    - [ingredient 1]
+    - [ingredient 2]
+    (and so on)
+    
     Instructions:
-    [Steps]`;
-
+    [Step-by-step cooking instructions]`;
+    
     const result = await textModel.generateContent(prompt);
     const response = await result.response;
     const recipeText = response.text();
@@ -322,9 +341,10 @@ app.post("/generate-recipe-from-ingredients", async (req, res) => {
   Make it simple, easy to follow, and suitable for home cooking. Prefer Indian/fusion style if possible.`;
 
   try {
-    const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const textModel = genAI.getGenerativeModel({ model: "models/gemini-pro" });
     const result = await textModel.generateContent(prompt);
-    const recipeText = result.response.text();
+    const response = await result.response;
+    const recipeText = response.text();
 
     // Parse the response to extract title, ingredients, and instructions
     const titleMatch = recipeText.match(/Title:\s*(.+?)(?:\n|$)/i);
