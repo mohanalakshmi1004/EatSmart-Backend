@@ -269,7 +269,9 @@ app.post("/smartrecipes", async (req, res) => {
       return res.status(400).json({ error: "Ingredients must be a non-empty array." });
     }
 
-    const textModel = genAI.getGenerativeModel({ model: "models/gemini-pro" });
+    // ✅ FIXED: Updated to the current stable model
+  const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
     const prompt = `Generate a detailed recipe using these ingredients: ${ingredients.join(", ")}.
     
     Please provide the response in this exact format:
@@ -278,14 +280,13 @@ app.post("/smartrecipes", async (req, res) => {
     Ingredients:
     - [ingredient 1]
     - [ingredient 2]
-    (and so on)
     
     Instructions:
     [Step-by-step cooking instructions]`;
     
+    // ✅ FIXED: Correct SDK execution
     const result = await textModel.generateContent(prompt);
-    const response = await result.response;
-    const recipeText = response.text();
+    const recipeText = result.response.text(); 
 
     // RegEx Parsing
     const titleMatch = recipeText.match(/Title:\s*(.+)/i);
@@ -297,18 +298,16 @@ app.post("/smartrecipes", async (req, res) => {
       : [];
 
     res.json({
-      title: titleMatch ? titleMatch[1].trim() : "Indian Special",
+      title: titleMatch ? titleMatch[1].trim() : "AI Special Recipe",
       ingredients: ingredientsList,
       instructions: instructionsMatch ? instructionsMatch[1].trim() : recipeText
     });
 
   } catch (error) {
-    // THIS LOG IS CRITICAL: Check your VS Code terminal for this output
-    console.error("DETAILED API ERROR:", error.message);
-    
+    console.error("❌ DETAILED API ERROR:", error);
     res.status(500).json({ 
       error: "AI Service Error", 
-      details: error.message // Sending details helps you debug during development
+      details: error.message 
     });
   }
 });
@@ -341,7 +340,7 @@ app.post("/generate-recipe-from-ingredients", async (req, res) => {
   Make it simple, easy to follow, and suitable for home cooking. Prefer Indian/fusion style if possible.`;
 
   try {
-    const textModel = genAI.getGenerativeModel({ model: "models/gemini-pro" });
+    const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const result = await textModel.generateContent(prompt);
     const response = await result.response;
     const recipeText = response.text();
@@ -375,6 +374,30 @@ app.post("/generate-recipe-from-ingredients", async (req, res) => {
 
 // ------------------ Spoonacular API ------------------
 const SPOONACULAR_KEY = process.env.SPOONACULAR_API_KEY;
+
+app.get("/foodfacts", async (req, res) => {
+  const search_terms = req.query.search_terms;
+  if (!search_terms) {
+    return res.status(400).json({ error: "search_terms query parameter is required" });
+  }
+
+  try {
+    const response = await axios.get("https://world.openfoodfacts.org/cgi/search.pl", {
+      params: {
+        search_terms,
+        search_simple: 1,
+        json: 1,
+        page_size: 1,
+      },
+      timeout: 10000,
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("❌ OpenFoodFacts proxy error:", error.message);
+    res.status(502).json({ error: "Failed to fetch nutrition data" });
+  }
+});
 
 app.post("/get-recipe", async (req, res) => {
   const { recipe } = req.body;
