@@ -316,54 +316,49 @@ app.post("/generate-recipe-from-ingredients", async (req, res) => {
   const { ingredients } = req.body;
   
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
-    return res.status(400).json({ 
-      error: "Please provide at least one ingredient as an array." 
-    });
+    return res.status(400).json({ error: "Please provide at least one ingredient as an array." });
   }
 
   const ingredientsList = ingredients.join(", ");
   const prompt = `Generate a detailed recipe using these ingredients: ${ingredientsList}.
   
-  Please provide the response in this exact format:
+  Please provide the response in this exact format, with no markdown bolding on the labels:
   Title: [Recipe Name]
   
   Ingredients:
   - [ingredient 1]
   - [ingredient 2]
-  (and so on)
   
   Instructions:
   1. [Step 1]
   2. [Step 2]
-  (and so on)
   
   Make it simple, easy to follow, and suitable for home cooking. Prefer Indian/fusion style if possible.`;
 
   try {
     const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const result = await textModel.generateContent(prompt);
-    const response = await result.response;
-    const recipeText = response.text();
+    const recipeText = result.response.text();
 
-    // Parse the response to extract title, ingredients, and instructions
-    const titleMatch = recipeText.match(/Title:\s*(.+?)(?:\n|$)/i);
+    // More robust RegEx Parsing, similar to your other endpoint
+    const titleMatch = recipeText.match(/Title:\s*\*?\*?(.+?)\*?\*?(?=\n|$)/i);
     const ingredientsMatch = recipeText.match(/Ingredients:\s*([\s\S]*?)(?=Instructions:|$)/i);
-    const instructionsMatch = recipeText.match(/Instructions:\s*([\s\S]*?)$/i);
+    const instructionsMatch = recipeText.match(/Instructions:\s*([\s\S]*)$/i);
 
     const title = titleMatch ? titleMatch[1].trim() : "Generated Recipe";
-    const ingredientsText = ingredientsMatch ? ingredientsMatch[1].trim() : "";
+    
+    // Parse ingredients list safely
+    const ingredientsArray = ingredientsMatch 
+      ? ingredientsMatch[1].trim().split("\n")
+          .map(i => i.replace(/^[-•*]\s*/, "").trim())
+          .filter(i => i.length > 0)
+      : [];
+
     const instructionsText = instructionsMatch ? instructionsMatch[1].trim() : recipeText;
 
-    // Parse ingredients list
-    const ingredientsList = ingredientsText
-      .split("\n")
-      .filter((line) => line.trim())
-      .map((line) => line.replace(/^[-•*]\s*/, "").trim())
-      .filter((line) => line.length > 0);
-
     res.json({
-      title,
-      ingredients: ingredientsList,
+      title: title,
+      ingredients: ingredientsArray,
       instructions: instructionsText,
     });
   } catch (error) {
