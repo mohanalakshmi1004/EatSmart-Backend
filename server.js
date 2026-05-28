@@ -270,7 +270,7 @@ app.post("/smartrecipes", async (req, res) => {
     }
 
     // ✅ FIXED: Updated to the current stable model
-  const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
     
     const prompt = `Generate a detailed recipe using these ingredients: ${ingredients.join(", ")}.
     
